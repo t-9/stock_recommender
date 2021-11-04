@@ -247,10 +247,12 @@ async fn ticker_rri(ticker: &str, years: i16) -> Result<f64, Box<dyn std::error:
         previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
     }
     pointer = resp_reslut[0].indicators.adjclose[0].adjclose.len() - 1;
-    while resp_reslut[0].indicators.adjclose[0].adjclose.last().is_none() {
+    let mut latest_price_option = resp_reslut[0].indicators.adjclose[0].adjclose.last();
+    while latest_price_option.unwrap().is_none() {
         pointer -= 1;
+        latest_price_option = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer);
     }
-    let latest_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
+    let latest_price = latest_price_option.unwrap().unwrap();
     Ok(rri(years as f64, previous_price, latest_price))
 }
 
