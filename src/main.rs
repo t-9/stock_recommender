@@ -150,11 +150,11 @@ struct ChartResultMeta {
 
 #[derive(Deserialize)]
 struct ChartResultIndicatorQuote {
-    high: Vec<f64>,
-    volume: Vec<u64>,
-    low: Vec<f64>,
-    open: Vec<f64>,
-    close: Vec<f64>,
+    high: Vec<Option<f64>>,
+    volume: Vec<Option<f64>>,
+    low: Vec<Option<f64>>,
+    open: Vec<Option<f64>>,
+    close: Vec<Option<f64>>,
 }
 
 #[derive(Deserialize)]
