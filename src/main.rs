@@ -101,12 +101,12 @@ async fn print_ip() -> Result<(), Box<dyn std::error::Error>> {
 #[derive(Deserialize)]
 struct ChartError {
     code: String,
-    description: String,
+    description: Option<String>,
 }
 
 impl fmt::Display for ChartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)
+        write!(f, "{}", self.code)
     }
 }
 
@@ -130,7 +130,7 @@ struct ChartResultMetaCurrentTradingPeriod {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChartResultMeta {
-    currency: String,
+    currency: Option<String>,
     symbol: String,
     exchange_name: String,
     instrument_type: String,
@@ -196,7 +196,7 @@ async fn print_highest_rate(ticker: String) -> Result<(), Box<dyn std::error::Er
     
     match resp.chart.error {
         Some(error) => {
-            println!("error: {}", error.description);
+            println!("error: {}", error.code);
             return Ok(());
         },
         None => {}
@@ -240,13 +240,17 @@ async fn ticker_rri(ticker: &str, years: i16) -> Result<f64, Box<dyn std::error:
     }
 
     let resp_reslut = resp.chart.result.unwrap();
-    let previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.first().unwrap().unwrap();
-    let mut latest_price = 0.;
-    let mut pointer = resp_reslut[0].indicators.adjclose[0].adjclose.len() - 1;
+    let mut pointer = 0;
+    let mut previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.first().unwrap().unwrap();
+    while previous_price <= 0. {
+        pointer += 1;
+        previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
+    }
+    pointer = resp_reslut[0].indicators.adjclose[0].adjclose.len() - 1;
     while resp_reslut[0].indicators.adjclose[0].adjclose.last().is_none() {
         pointer -= 1;
     }
-    latest_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
+    let latest_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
     Ok(rri(years as f64, previous_price, latest_price))
 }
 
@@ -286,11 +290,15 @@ async fn print_score_ranking() -> Result<(), Box<dyn std::error::Error>> {
         score_future_list.insert(ticker, Box::pin(score_future));
     }
 
+    let mut tmp_file = File::create("tmp.csv")?;
     for ticker in tickers.iter() {
         let score = score_future_list.get_mut(ticker).unwrap().await;
         match score {
             Ok(score) => {
                 println!("{}: {:#?}", ticker, score);
+                if let Err(e) = writeln!(tmp_file, "{},{:#?}", ticker, score) {
+                    println!("{}", e)
+                }
                 scores.insert(ticker, score);
             },
             Err(e) => {
@@ -305,10 +313,10 @@ async fn print_score_ranking() -> Result<(), Box<dyn std::error::Error>> {
     let mut sorted: Vec<_> = scores.iter().collect();
     sorted.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
 
-    let mut result_file = File::create("result.txt")?;
+    let mut result_file = File::create("result.csv")?;
     let mut rank = 1;
     for (ticker, score) in sorted {
-        println!("{}. {}: {:#?}", rank, ticker, score);
+        println!("{},{},{:#?}", rank, ticker, score);
         if let Err(e) = writeln!(result_file, "{}. {}: {:#?}", rank, ticker, score) {
             println!("{}", e)
         }
