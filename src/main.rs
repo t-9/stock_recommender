@@ -16,10 +16,6 @@ async fn main() {
 
         match mode {
             0 => break,
-            1 => hello_world().await,
-            2 => print_ip()
-                .await
-                .expect("Failed to print ip"),
             3 => highest_rate_mode()
                 .await,
             4 => score_mode()
@@ -57,8 +53,6 @@ fn print_menu() {
     println!("");
     println!("Please Select Mode");
     println!("0: exit");
-    println!("1: Hello World");
-    println!("2: Print IP");
     println!("3: Highest Rate");
     println!("4: Score");
     println!("5: Score Ranking");
@@ -80,21 +74,6 @@ fn scan_input() -> String {
         .read_line(&mut val)
         .expect("Failed to read line");
     return val.trim().to_string();
-}
-
-async fn hello_world() {
-    println!("");
-    println!("Hello World!");
-}
-
-async fn print_ip() -> Result<(), Box<dyn std::error::Error>> {
-    println!("");
-    let resp = reqwest::get("https://httpbin.org/ip")
-        .await?
-        .json::<HashMap<String, String>>()
-        .await?;
-    println!("{:#?}", resp);
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -319,7 +298,7 @@ async fn print_score_ranking() -> Result<(), Box<dyn std::error::Error>> {
     let mut rank = 1;
     for (ticker, score) in sorted {
         println!("{},{},{:#?}", rank, ticker, score);
-        if let Err(e) = writeln!(result_file, "{}. {}: {:#?}", rank, ticker, score) {
+        if let Err(e) = writeln!(result_file, "{},{},{:#?}", rank, ticker, score) {
             println!("{}", e)
         }
         rank += 1;
