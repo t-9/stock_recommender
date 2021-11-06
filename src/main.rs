@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
 use serde::{Deserialize};
+use chrono::Utc;
 
 #[tokio::main]
 async fn main() {
@@ -294,7 +295,7 @@ async fn print_score_ranking() -> Result<(), Box<dyn std::error::Error>> {
     let mut sorted: Vec<_> = scores.iter().collect();
     sorted.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
 
-    let mut result_file = File::create("result.csv")?;
+    let mut result_file = File::create(format!("result{}.csv", Utc::now().format("%Y%m%d%H%M%S").to_string()))?;
     let mut rank = 1;
     for (ticker, score) in sorted {
         println!("{},{},{:#?}", rank, ticker, score);
