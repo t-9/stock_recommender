@@ -1,9 +1,11 @@
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
 use serde::{Deserialize};
 use chrono::Utc;
+use reqwest::Client;
+use futures::{stream, StreamExt};
 
 #[tokio::main]
 async fn main() {
@@ -17,6 +19,8 @@ async fn main() {
 
         match mode {
             0 => break,
+            1 => test_mode()
+                .await,
             3 => highest_rate_mode()
                 .await,
             4 => score_mode()
@@ -26,6 +30,10 @@ async fn main() {
             _ => (),
         }
     }
+}
+
+async fn test_mode() {
+    print_test().await
 }
 
 async fn highest_rate_mode() {
@@ -54,6 +62,7 @@ fn print_menu() {
     println!("");
     println!("Please Select Mode");
     println!("0: exit");
+    println!("1: test");
     println!("3: Highest Rate");
     println!("4: Score");
     println!("5: Score Ranking");
@@ -165,6 +174,61 @@ struct Chart {
 #[derive(Deserialize)]
 struct ChartResponse {
     chart: Chart,
+}
+
+async fn print_test() {
+    const CONCURRENT_REQUESTS: usize = 3;
+
+    let client = Client::new();
+    let mut urls = Vec::new();
+    urls.push("https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=5y&interval=1d&events=history");
+    urls.push("https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=10y&interval=1d&events=history");
+    urls.push("https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=25y&interval=1d&events=history");
+
+    let bodies = stream::iter(urls)
+        .map(|url| {
+            let client = &client;
+            async move {
+                let resp = client.get(url).send().await?;
+                resp.json::<ChartResponse>().await
+            }
+        })
+        .buffer_unordered(CONCURRENT_REQUESTS);
+
+    bodies
+        .for_each(|b| async {
+            match b {
+                Ok(resp) => {
+                    if let Some(error) = resp.chart.error {
+                        println!("{}", error);
+                    }
+                
+                    let resp_reslut = resp.chart.result.unwrap();
+
+                    let years: &str = resp_reslut[0].meta.range.as_ref();
+                    let mut years = years.to_string();
+                    years.retain(|c| c != 'y');
+                    let years = years.parse::<f64>().unwrap();
+
+                    let mut pointer = 0;
+                    let mut previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.first().unwrap().unwrap();
+                    while previous_price <= 0. {
+                        pointer += 1;
+                        previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
+                    }
+                    pointer = resp_reslut[0].indicators.adjclose[0].adjclose.len() - 1;
+                    let mut latest_price_option = resp_reslut[0].indicators.adjclose[0].adjclose.last();
+                    while latest_price_option.unwrap().is_none() {
+                        pointer -= 1;
+                        latest_price_option = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer);
+                    }
+                    let latest_price = latest_price_option.unwrap().unwrap();
+                    println!("{}", rri(years, previous_price, latest_price))
+                },
+                Err(e) => eprintln!("Got an error: {}", e),
+            }
+        })
+        .await;
 }
 
 async fn print_highest_rate(ticker: String) -> Result<(), Box<dyn std::error::Error>> {
