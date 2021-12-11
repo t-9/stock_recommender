@@ -1,6 +1,6 @@
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write, Error};
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, write};
 use std::fs::File;
 use serde::{Deserialize};
 use chrono::Utc;
@@ -288,6 +288,10 @@ async fn ticker_rri(ticker: &str, years: i16) -> Result<f64, Box<dyn std::error:
     let mut previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.first().unwrap().unwrap();
     while previous_price <= 0. {
         pointer += 1;
+        match resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap() {
+            Some(result) => previous_price = *result,
+            None => return Err(Box::new(NoneError))
+        }
         previous_price = resp_reslut[0].indicators.adjclose[0].adjclose.get(pointer).unwrap().unwrap();
     }
     pointer = resp_reslut[0].indicators.adjclose[0].adjclose.len() - 1;
@@ -298,6 +302,21 @@ async fn ticker_rri(ticker: &str, years: i16) -> Result<f64, Box<dyn std::error:
     }
     let latest_price = latest_price_option.unwrap().unwrap();
     Ok(rri(years as f64, previous_price, latest_price))
+}
+
+#[derive(Debug, Clone)]
+struct NoneError;
+
+impl fmt::Display for NoneError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "None Error")
+    }
+}
+
+impl std::error::Error for NoneError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
 }
 
 async fn ticker_score(ticker: &str) -> Result<f64, Box<dyn std::error::Error>> {
